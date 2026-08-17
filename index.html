@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GothamChess - GTE Engine</title>
+</head>
+<body style="background-color: #0e0e10; color: #ffffff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0;">
+
+  <div style="background-color: #18181b; border: 2px solid #26262c; border-radius: 16px; padding: 40px; width: 420px; text-align: center; box-sizing: border-box;">
+    
+    <div style="font-size: 1.2rem; color: #adadb8; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px;">
+      GTE Engine
+    </div>
+
+    <div style="margin-bottom: 25px;">
+      <input type="text" id="gameUrl" placeholder="Paste Chess.com Game Link..." style="width: 100%; padding: 12px; background-color: #0e0e10; border: 1px solid #3a3a44; border-radius: 8px; color: #ffffff; outline: none; box-sizing: border-box;">
+    </div>
+
+    <div style="background-color: #0e0e10; border-radius: 12px; padding: 30px; margin-bottom: 25px; border: 1px solid #26262c;">
+      <div style="font-size: 0.85rem; color: #efeff1; margin-bottom: 10px; text-transform: uppercase;">
+        Average Game ELO Estimate
+      </div>
+      <div id="eloDisplay" style="font-size: 4rem; color: #3a3a44; font-weight: bold;">
+        ?
+      </div>
+    </div>
+
+    <button id="revealBtn" onclick="toggleReveal()" style="width: 100%; padding: 16px; background-color: #9146ff; color: #ffffff; border: none; border-radius: 8px; font-size: 1.1rem; font-weight: bold; cursor: pointer;">
+      REVEAL ESTIMATE
+    </button>
+
+    <div id="statusText" style="margin-top: 15px; font-size: 0.8rem; color: #777777;">
+      Awaiting game link...
+    </div>
+
+  </div>
+
+  <script>
+    let isRevealed = false;
+    let fetchedElo = null;
+
+    async function fetchGameElo() {
+      const rawUrl = document.getElementById('gameUrl').value;
+      const urlInput = rawUrl ? rawUrl.trim() : '';
+      const statusText = document.getElementById('statusText');
+      
+      if (!urlInput) {
+        console.warn("JS Log: Link girilmedi.");
+        alert("Please enter a valid Chess.com game link first!");
+        return false;
+      }
+
+      statusText.innerText = "Fetching game data...";
+
+      try {
+        console.log("JS Log: Python sunucusuna istek gönderiliyor...", urlInput);
+
+        const response = await fetch('https://gte-engine-backend.onrender.com', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ game_url: urlInput })
+        });
+
+        console.log("JS Log: Sunucu Durum Kodu (HTTP Status):", response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP Sunucu Hatası: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("JS Log: Python'dan dönen JSON:", data);
+
+        if (data.success) {
+          fetchedElo = data.average_elo;
+          statusText.innerText = "Estimate ready! Click button to reveal.";
+          return true;
+        } else {
+          statusText.innerText = "Error: " + data.error;
+          fetchedElo = null;
+          return false;
+        }
+      } catch (err) {
+        console.error("JS Hatası (Catch):", err);
+        statusText.innerText = "Connection failed. Check F12 console or python server.";
+        fetchedElo = null;
+        return false;
+      }
+    }
+
+    async function toggleReveal() {
+      const display = document.getElementById('eloDisplay');
+      const btn = document.getElementById('revealBtn');
+      const urlInput = document.getElementById('gameUrl').value.trim();
+
+      if (!urlInput) {
+        alert("Please enter a valid Chess.com game link first!");
+        return;
+      }
+
+      // Veri henüz çekilmediyse veya önceki istek hatalıysa tekrar çek
+      if (fetchedElo === null) {
+        const success = await fetchGameElo();
+        if (!success) return;
+      }
+
+      // ELO göster/gizle geçişi
+      if (!isRevealed) {
+        display.innerText = fetchedElo;
+        display.style.color = "#00e676";
+        btn.innerText = "HIDE ESTIMATE";
+        btn.style.backgroundColor = "#3a3a44";
+        isRevealed = true;
+      } else {
+        display.innerText = "?";
+        display.style.color = "#3a3a44";
+        btn.innerText = "REVEAL ESTIMATE";
+        btn.style.backgroundColor = "#9146ff";
+        isRevealed = false;
+      }
+    }
+
+    // Input kutusunda link değişirse veriyi sıfırla ki yeni link sorgulanabilsin
+    document.getElementById('gameUrl').addEventListener('input', () => {
+      fetchedElo = null;
+      isRevealed = false;
+      document.getElementById('eloDisplay').innerText = "?";
+      document.getElementById('eloDisplay').style.color = "#3a3a44";
+      document.getElementById('revealBtn').innerText = "REVEAL ESTIMATE";
+      document.getElementById('revealBtn').style.backgroundColor = "#9146ff";
+      document.getElementById('statusText').innerText = "Awaiting game link...";
+    });
+  </script>
+
+</body>
+</html>

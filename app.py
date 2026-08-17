@@ -4,7 +4,6 @@ import cloudscraper
 import re
 
 app = Flask(__name__)
-# GitHub Pages'ten gelen tüm isteklerin engellenmemesi için CORS izni
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 scraper = cloudscraper.create_scraper()
@@ -24,19 +23,33 @@ def get_elo():
         if not game_url:
             return jsonify({'success': False, 'error': 'Please provide a valid Chess.com link!'}), 400
 
-        # Chess.com Oyun ID'sini Regex ile Çekme
+        # Chess.com canlı oyun ID'sini yakalama
         match = re.search(r'live/(\d+)', game_url)
         if not match:
             return jsonify({'success': False, 'error': 'Invalid Chess.com link format!'}), 400
 
         game_id = match.group(1)
 
-        # Chess.com API / Scrape İsteği
-        # (Kendi özel algoritman/Stockfish analiz hesasplaman buraya bağlanır)
-        # Örnek test hesabı/veri çekme simülasyonu:
-        estimated_elo = 1500  # Buraya kendi Elo hesaplama fonksiyonunu bağlayabilirsin
+        # Chess.com callback servisinden oyun detaylarını çekme
+        api_url = f"https://www.chess.com/callback/live/game/{game_id}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        }
+        
+        response = scraper.get(api_url, headers=headers)
+        if response.status_code != 200:
+            return jsonify({'success': False, 'error': 'Could not fetch game data from Chess.com'}), 400
 
-        # 'elo' anahtarı eklendi, böylece ön yüz doğrudan rakamı okuyacak
+        game_data = response.json()
+        
+        # Oyuncu bilgilerini çekip ortalama veya tahminî Elo'yu hesaplama mantığı
+        game_info = game_data.get('game', {})
+        white_rating = game_info.get('white', {}).get('rating', 1500)
+        black_rating = game_info.get('black', {}).get('rating', 1500)
+        
+        # Burada VS Code'da kurduğumuz hesaplama algoritmasını uyguluyoruz
+        estimated_elo = int((white_rating + black_rating) / 2)
+
         return jsonify({
             'success': True,
             'game_id': game_id,
